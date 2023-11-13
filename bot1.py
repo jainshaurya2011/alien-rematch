@@ -14,8 +14,8 @@ df = pd.DataFrame(columns=['Bot', 'NumAliens', 'CrewSaved', 'TimeAlive', 'IsAliv
 
 # Declaring the global variables
 D = 10 # Dimension of the ship
-k = 3  # Alien detection range
-alpha = 0.15  # crew beep
+k = 3 # Alien detection range
+alpha = 0.075  # crew beep
 ship = np.ones(())  # Layout of the ship
 beliefNetworkAlien = np.zeros((D, D), dtype=np.longdouble)  # Belief of alien in each cell
 beliefNetworkCrew = np.zeros((D, D), dtype=np.longdouble)  # Belief of crew in each cell
@@ -260,21 +260,20 @@ def init_belief_network_crew():
 
 def calc_sum_prob_alien():
     global beliefNetworkAlien
-
     score = np.longdouble(0)
 
     for i in range(D):
         for j in range(D):
             score = score + (beliefNetworkAlien[i][j] * detect_within_2k((i, j), isBeepAlien))
-    # if score==0:
-    #     score = 10**(-308)
+    if score==0:
+        score = 10**(-308)
     return score
 
 
 def update_belief_network_alien():
     global beliefNetworkAlien
     denom = np.longdouble(calc_sum_prob_alien())
-    print(denom)
+    #print(denom)
     for i in range(D):
         for j in range(D):
             beliefNetworkAlien[i][j] = ((beliefNetworkAlien[i][j] * detect_within_2k((i, j), isBeepAlien)) / denom)
@@ -307,9 +306,9 @@ def update_belief_network_crew():
         for j in range(D):
             prob = np.exp(-alpha * (dist(bot_cell[0], bot_cell[1], i, j) - 1))
             if isBeepCrew == 1:
-                beliefNetworkAlien[i][j] = ((beliefNetworkCrew[i][j] * prob) / denom)
+                beliefNetworkCrew[i][j] = ((beliefNetworkCrew[i][j] * prob) / denom)
             elif isBeepCrew == 0:
-                beliefNetworkAlien[i][j] = ((beliefNetworkCrew[i][j] * (1 - prob)) / denom)
+                beliefNetworkCrew[i][j] = ((beliefNetworkCrew[i][j] * (1 - prob)) / denom)
             else:
                 print("bhai kesa!!!")
 
@@ -325,8 +324,7 @@ def bot_movement():
     valid_neighbors = get_valid_neighbors(x, y)
     # print(valid_neighbors)
     for valid_neighbor in valid_neighbors:
-        temp = h1 * beliefNetworkCrew[valid_neighbor[0]][valid_neighbor[1]] + h2 * (
-                1 - beliefNetworkAlien[valid_neighbor[0]][valid_neighbor[1]])
+        temp = h1 * beliefNetworkCrew[valid_neighbor[0]][valid_neighbor[1]] + h2 * (1 - beliefNetworkAlien[valid_neighbor[0]][valid_neighbor[1]])
         if temp > score:
             move = (valid_neighbor[0], valid_neighbor[1])
             score = temp
@@ -334,20 +332,20 @@ def bot_movement():
             if beliefNetworkCrew[valid_neighbor[0]][valid_neighbor[1]] > beliefNetworkCrew[move[0]][move[1]]:
                 move = (valid_neighbor[0], valid_neighbor[1])
 
-    print(bot_cell)
-    print(move)
+    #print(bot_cell)
+    #print(move)
     update_bot_position(bot_cell, move)
     bot_cell = move
     # print(bot_cell)
 
     if bot_cell in alien_cells:
         isAlive = 0
-        print("dead")
+        #print("dead")
     if bot_cell == crew_cell:
         isCrewSaved = 1
-        print("saved")
-    beliefNetworkAlien[bot_cell[0]][bot_cell[1]] = 0
-    beliefNetworkCrew[bot_cell[0]][bot_cell[1]] = 0
+        #print("saved")
+    update_after_bot_movement()
+
 
 
 def update_after_alien_movement():
@@ -366,17 +364,27 @@ def update_after_alien_movement():
     beliefNetworkAlien = tempNetwork
 
 
-# def update_after_bot_movement():
-#     global beliefNetworkAlien
-#     global beliefNetworkCrew
+def update_after_bot_movement():
+    global beliefNetworkAlien
+    global beliefNetworkCrew
 
-#     denom = beliefNetworkAlien[bot_cell]
-#     print(denom)
-#     for i in range(D):
-#         for j in range(D):
-#             beliefNetworkAlien[i][j] = ((beliefNetworkAlien[i][j] * detect_within_2k((i, j), isBeepAlien)) / denom)
+    denom = 1 - beliefNetworkAlien[bot_cell]
+    beliefNetworkAlien[bot_cell] = 0
+    #print(denom)
+    for i in range(D):
+        for j in range(D):
+            beliefNetworkAlien[i][j] = ((beliefNetworkAlien[i][j] * detect_within_2k((i, j), isBeepAlien)) / denom)
 
-
+    denom = 1 - beliefNetworkCrew[bot_cell]
+    beliefNetworkCrew[bot_cell] = 0
+    # print(denom)
+    for i in range(D):
+        for j in range(D):
+            prob = np.exp(-alpha * (dist(bot_cell[0], bot_cell[1], i, j) - 1))
+            if isBeepCrew == 1:
+                beliefNetworkCrew[i][j] = ((beliefNetworkCrew[i][j] * prob) / denom)
+            elif isBeepCrew == 0:
+                beliefNetworkCrew[i][j] = ((beliefNetworkCrew[i][j] * (1 - prob)) / denom)
 
 
 def bfs(grid, start):
@@ -456,7 +464,7 @@ def bot1():
 
         t += 1
         bot_movement()
-        print("before Bot, alien, crew", bot_cell, alien_cells, crew_cell)
+        #print("before Bot, alien, crew", bot_cell, alien_cells, crew_cell)
         if isAlive != 1 or isCrewSaved != 0:
             return (t, isAlive, isCrewSaved)
         isBeepAlien = detect_alien()
@@ -465,7 +473,7 @@ def bot1():
         update_belief_network_crew()
 
         generate_alien_movements()
-        print("after Bot, alien, crew", bot_cell, alien_cells, crew_cell)
+        #print("after Bot, alien, crew", bot_cell, alien_cells, crew_cell)
         if bot_cell in alien_cells:
             isAlive = 0
         if isAlive != 1 or isCrewSaved != 0:
@@ -484,11 +492,11 @@ def bot1():
 # print([bot_position[0]])
 
 saved = 0
-for i in range(100):
-    print(i)
+for i in range(30):
+    #print(i)
     t, a, s = bot1()
     saved += s
-    print(t, a, s)
-    print("#################################################################################################")
+    #print(t, a, s)
+    #print("#################################################################################################")
 
 print("saved ", saved)
