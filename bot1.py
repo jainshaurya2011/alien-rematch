@@ -481,7 +481,7 @@ def bot1():
 
 # print(distances)
 
-# print([bot_position[0]])
+print([bot_position[0]])
 
 saved = 0
 for i in range(100):
