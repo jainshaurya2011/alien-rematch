@@ -4,18 +4,20 @@ from collections import deque
 import numpy as np
 import pandas as pd
 import random
+import matplotlib.pyplot as plt
+import seaborn as sns
 import warnings
+
 warnings.filterwarnings('error')
 import heapq
-import math
 
 # Creating the dataframe
 df = pd.DataFrame(columns=['Bot', 'NumAliens', 'CrewSaved', 'TimeAlive', 'IsAlive'])
 
 # Declaring the global variables
-D = 10 # Dimension of the ship
-k = 3 # Alien detection range
-alpha = 0.075  # crew beep
+D = 30  # Dimension of the ship
+k = 3  # Alien detection range
+alpha = 0.055  # crew beep
 ship = np.ones(())  # Layout of the ship
 beliefNetworkAlien = np.zeros((D, D), dtype=np.longdouble)  # Belief of alien in each cell
 beliefNetworkCrew = np.zeros((D, D), dtype=np.longdouble)  # Belief of crew in each cell
@@ -98,8 +100,6 @@ def generate_ship_layout():
 def find_empty_cell(key=0):
     global ship
     global bot_cell
-    # print(bot_cell)
-    # print(max(0, bot_cell[0] - k), min(D - 1, bot_cell[0] + k))
     while True:
         x = random.randint(0, len(ship) - 1)
         y = random.randint(0, len(ship[0]) - 1)
@@ -108,7 +108,6 @@ def find_empty_cell(key=0):
                 return (x, y)
 
         elif key == 1:
-            # print(x,y)
             if ship[x][y] in [0, 9]:
                 if (x < bot_cell[0] - k or x > bot_cell[0] + k) and (y < bot_cell[1] - k or y > bot_cell[1] + k):
                     return (x, y)
@@ -124,13 +123,12 @@ def setup_bot():
 
 
 # Function to set up the aliens
-def setup_aliens(aliens):
+def setup_aliens():
     global ship
     global alien_cells
-    # Find a random empty cell for each alien
-    num_aliens = aliens
+
     alien_cells = []
-    for x in range(num_aliens):
+    for x in range(noOfAlien):
         temp = find_empty_cell(1)
         alien_cells.append(temp)
         ship[temp] = 9
@@ -140,23 +138,19 @@ def setup_aliens(aliens):
 def setup_crew():
     global ship
     global crew_cell
-    # print(bot_cell)
     # Find a random empty cell for the crew member
     crew_cell = find_empty_cell()
-    # ship[crew_cell] = 6
 
 
 # Function to generate ship, bot, crew and aliens in a single call
-def generate_ship_bot_aliens(no_of_aliens):
+def generate_ship_bot_aliens():
     # Generate your ship layout
     generate_ship_layout()
 
     # Set up bot, aliens, and crew
     setup_bot()
     setup_crew()
-    setup_aliens(no_of_aliens)
-
-    # display()
+    setup_aliens()
 
 
 # Function to update the position of the bot after it's movement
@@ -226,10 +220,11 @@ def detect_alien():
 
     return 0
 
+
 def detect_crew():
     x, y = bot_cell
     i, j = crew_cell
-    prob = np.exp(-alpha * (dist(x, y, i, j)-1))
+    prob = np.exp(-alpha * (dist(x, y, i, j) - 1))
     if random.random() < prob:
         return 1
     else:
@@ -239,6 +234,7 @@ def detect_crew():
 def dist(x, y, i, j):
     global distances
     return distances[x][y][i][j]
+
 
 def init_belief_network_Alien():
     global ship
@@ -265,19 +261,16 @@ def calc_sum_prob_alien():
     for i in range(D):
         for j in range(D):
             score = score + (beliefNetworkAlien[i][j] * detect_within_2k((i, j), isBeepAlien))
-    if score==0:
-        score = 10**(-308)
     return score
 
 
 def update_belief_network_alien():
     global beliefNetworkAlien
-    denom = np.longdouble(calc_sum_prob_alien())
-    #print(denom)
+    denominator = np.longdouble(calc_sum_prob_alien())
     for i in range(D):
         for j in range(D):
-            beliefNetworkAlien[i][j] = ((beliefNetworkAlien[i][j] * detect_within_2k((i, j), isBeepAlien)) / denom)
-            #print()
+            beliefNetworkAlien[i][j] = (
+                        (beliefNetworkAlien[i][j] * detect_within_2k((i, j), isBeepAlien)) / denominator)
 
 
 def calc_sum_prob_crew():
@@ -293,7 +286,6 @@ def calc_sum_prob_crew():
                 score = score + (beliefNetworkCrew[i][j] * (1 - prob))
             else:
                 print("How!!!")
-            #score = score + (beliefNetworkCrew[i][j] * prob)
     return score
 
 
@@ -320,11 +312,10 @@ def bot_movement():
     x, y = bot_cell
     score = -1
     move = (0, 0)
-    # print(score)
     valid_neighbors = get_valid_neighbors(x, y)
-    # print(valid_neighbors)
     for valid_neighbor in valid_neighbors:
-        temp = h1 * beliefNetworkCrew[valid_neighbor[0]][valid_neighbor[1]] + h2 * (1 - beliefNetworkAlien[valid_neighbor[0]][valid_neighbor[1]])
+        temp = h1 * beliefNetworkCrew[valid_neighbor[0]][valid_neighbor[1]] + h2 * (
+                1 - beliefNetworkAlien[valid_neighbor[0]][valid_neighbor[1]])
         if temp > score:
             move = (valid_neighbor[0], valid_neighbor[1])
             score = temp
@@ -332,20 +323,14 @@ def bot_movement():
             if beliefNetworkCrew[valid_neighbor[0]][valid_neighbor[1]] > beliefNetworkCrew[move[0]][move[1]]:
                 move = (valid_neighbor[0], valid_neighbor[1])
 
-    #print(bot_cell)
-    #print(move)
     update_bot_position(bot_cell, move)
     bot_cell = move
-    # print(bot_cell)
 
     if bot_cell in alien_cells:
         isAlive = 0
-        #print("dead")
     if bot_cell == crew_cell:
         isCrewSaved = 1
-        #print("saved")
     update_after_bot_movement()
-
 
 
 def update_after_alien_movement():
@@ -356,7 +341,8 @@ def update_after_alien_movement():
     for i in range(D):
         for j in range(D):
             valid_neighbors = get_valid_neighbors(i, j)
-            n = len(valid_neighbors)
+            n = len(valid_neighbors) + 1
+            tempNetwork[i][j] += beliefNetworkAlien[i][j] / n
             for valid_neighbor in valid_neighbors:
                 x, y = valid_neighbor
                 tempNetwork[x][y] += beliefNetworkAlien[i][j] / n
@@ -368,41 +354,54 @@ def update_after_bot_movement():
     global beliefNetworkAlien
     global beliefNetworkCrew
 
-    denom = 1 - beliefNetworkAlien[bot_cell]
+    if isCrewSaved == 1:
+        return 0
+
+    denominator = 1 - beliefNetworkAlien[bot_cell]
     beliefNetworkAlien[bot_cell] = 0
-    #print(denom)
     for i in range(D):
         for j in range(D):
-            beliefNetworkAlien[i][j] = ((beliefNetworkAlien[i][j] * detect_within_2k((i, j), isBeepAlien)) / denom)
+            beliefNetworkAlien[i][j] = ((beliefNetworkAlien[i][j]) / denominator)
 
-    denom = 1 - beliefNetworkCrew[bot_cell]
+    denominator = 1 - beliefNetworkCrew[bot_cell]
     beliefNetworkCrew[bot_cell] = 0
-    # print(denom)
     for i in range(D):
         for j in range(D):
-            prob = np.exp(-alpha * (dist(bot_cell[0], bot_cell[1], i, j) - 1))
-            if isBeepCrew == 1:
-                beliefNetworkCrew[i][j] = ((beliefNetworkCrew[i][j] * prob) / denom)
-            elif isBeepCrew == 0:
-                beliefNetworkCrew[i][j] = ((beliefNetworkCrew[i][j] * (1 - prob)) / denom)
+            beliefNetworkCrew[i][j] = ((beliefNetworkCrew[i][j]) / denominator)
 
 
-def bfs(grid, start):
-    """Compute the shortest distances from the start cell to all other cells using BFS."""
-    rows, cols = len(grid), len(grid[0])
-    distances = [[-1] * cols for _ in range(rows)]
-    distances[start[0]][start[1]] = 0
-    queue = deque([start])
+def a_star(start_cell):
+    global ship
 
-    while queue:
-        i, j = queue.popleft()
-        for di, dj in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-            new_i, new_j = i + di, j + dj
-            if 0 <= new_i < rows and 0 <= new_j < cols and distances[new_i][new_j] == -1:
-                distances[new_i][new_j] = distances[i][j] + 1
-                queue.append((new_i, new_j))
+    tempMatrix = np.zeros((D, D))
 
-    return distances
+    def is_valid(x, y):
+        return 0 <= x < len(ship) and 0 <= y < len(ship[0]) and ship[x][y] in [0, 9]
+
+    came_from = {}
+    g_score = {(i, j): float('inf') for i in range(D) for j in range(D)}
+    g_score[start_cell] = 0
+    f_score = {(i, j): float('inf') for i in range(D) for j in range(D)}
+    f_score[start_cell] = 0
+
+    open_set = [(0, 0, start_cell)]
+
+    while open_set:
+        _, _, current = heapq.heappop(open_set)
+
+        for dx, dy in [(1, 0), (-1, 0), (0, 1), (0, -1)]:
+            neighbor = (current[0] + dx, current[1] + dy)
+
+            if is_valid(*neighbor):
+                tentative_g_score = g_score[current] + 1
+                tentative_f_score = tentative_g_score + 0
+                if tentative_f_score < f_score[neighbor]:
+                    came_from[neighbor] = current
+                    g_score[neighbor] = tentative_g_score
+                    f_score[neighbor] = tentative_f_score
+                    heapq.heappush(open_set, (f_score[neighbor], 0, neighbor))
+                    tempMatrix[neighbor] = f_score[neighbor]
+    return tempMatrix
 
 
 def compute_all_pairs_shortest_distances(grid):
@@ -412,9 +411,22 @@ def compute_all_pairs_shortest_distances(grid):
 
     for i in range(rows):
         for j in range(cols):
-            all_pairs_distances[i][j] = bfs(grid, (i, j))
+            all_pairs_distances[i][j] = a_star((i, j)).tolist()
 
     return all_pairs_distances
+
+
+def heatmap(data, titt):
+    ax = sns.heatmap(data, fmt="d", linewidths=1, linecolor='white')
+    ax.plot([bot_cell[1] + 0.5], [bot_cell[0] + 0.5], marker='o', markersize=10, markeredgewidth=2, markeredgecolor='b',
+            markerfacecolor='b')
+    for alien_cell in alien_cells:
+        ax.plot([alien_cell[1] + 0.5], [alien_cell[0] + 0.5], marker='o', markersize=10, markeredgewidth=2,
+                markeredgecolor='r', markerfacecolor='r')
+    ax.plot([crew_cell[1] + 0.5], [crew_cell[0] + 0.5], marker='o', markersize=10, markeredgewidth=2,
+            markeredgecolor='g', markerfacecolor='g')
+    plt.title(titt)
+    plt.show()
 
 
 def bot1():
@@ -436,35 +448,25 @@ def bot1():
     isAlive = 1
     isCrewSaved = 0
     noOfOpenCell = 0
+    ship = np.ones(())  # Layout of the ship
+    beliefNetworkAlien = np.zeros((D, D), dtype=np.longdouble)  # Belief of alien in each cell
+    beliefNetworkCrew = np.zeros((D, D), dtype=np.longdouble)  # Belief of crew in each cell
+    tempNetwork = np.zeros((D, D), dtype=np.longdouble)  # Temp
 
-    generate_ship_bot_aliens(noOfAlien)
-    #display()
-
+    generate_ship_bot_aliens()
     init_belief_network_crew()
     init_belief_network_Alien()
     ship2 = ship.tolist()
     distances = compute_all_pairs_shortest_distances(ship2)
 
-    #print(beliefNetworkCrew)
-    #print(beliefNetworkAlien)
     isBeepAlien = detect_alien()
     isBeepCrew = detect_crew()
-    #print(isBeepAlien)
-    #print(isBeepCrew)
     update_belief_network_alien()
     update_belief_network_crew()
 
     while True:
-        #print("time", t)
-        #print("*************************************************************************************")
-        #print("time", t)
-        # print(ship)
-        # print(beliefNetworkCrew)
-        # print(beliefNetworkAlien)
-
         t += 1
         bot_movement()
-        #print("before Bot, alien, crew", bot_cell, alien_cells, crew_cell)
         if isAlive != 1 or isCrewSaved != 0:
             return (t, isAlive, isCrewSaved)
         isBeepAlien = detect_alien()
@@ -473,10 +475,8 @@ def bot1():
         update_belief_network_crew()
 
         generate_alien_movements()
-        #print("after Bot, alien, crew", bot_cell, alien_cells, crew_cell)
         if bot_cell in alien_cells:
             isAlive = 0
-        if isAlive != 1 or isCrewSaved != 0:
             return (t, isAlive, isCrewSaved)
         isBeepAlien = detect_alien()
         update_after_alien_movement()
@@ -485,18 +485,19 @@ def bot1():
     return "maa chudi"
 
 
-
-
-# print(distances)
-
-# print([bot_position[0]])
-
+asdf = [2, 4, 6, 8, 10, 12]
 saved = 0
-for i in range(30):
-    #print(i)
-    t, a, s = bot1()
-    saved += s
-    #print(t, a, s)
-    #print("#################################################################################################")
+timeAlive = 0
+for q in asdf:
+    k = q
+    saved = 0
+    timeAlive = 0
+    print(k)
+    for i in range(50):
+        t, a, s = bot1()
+        saved += s
+        timeAlive += t
 
-print("saved ", saved)
+    print("saved: ", saved)
+    print("avg time: ", timeAlive / 50)
+    print("***************************************************************************************")
